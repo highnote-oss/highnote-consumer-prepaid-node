@@ -9,14 +9,16 @@ Thumbs.db
 *.swo
 
 # AI tooling local state
-.claude/settings.local.json
+.claude/
 .serena/
 .playwright-mcp/
+.superpowers/
 
 # Environment
 .env
 .env.*
 !.env.example
+!.env.template
 
 # Node
 node_modules/
@@ -25,6 +27,17 @@ build/
 coverage/
 *.log
 .npm/
-
-# OS / misc
 *.tsbuildinfo
+.eslintcache
+.stylelintcache
+*.tgz
+
+# Vite
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# SQLite (api/data/)
+api/data/
+*.db
+*.db-shm
+*.db-wal

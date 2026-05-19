@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: highnote-consumer-prepaid
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: HIGHNOTE_API_KEY
+        sync: false
+      - key: HIGHNOTE_ENVIRONMENT
+        value: test
+      - key: HIGHNOTE_CARD_PRODUCT_ID
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: NODE_ENV
+        value: production
