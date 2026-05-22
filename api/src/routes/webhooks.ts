@@ -52,7 +52,8 @@ export async function webhookRoutes(app: FastifyInstance) {
 
       webhookRegistration.noteVerifiedEventReceived();
     } else {
-      request.log.warn("No signing key in memory — skipping webhook signature verification");
+      request.log.warn("Webhook signing key not available — rejecting unverifiable event");
+      return reply.status(503).send({ error: "Webhook signing key not available" });
     }
 
     let event: Record<string, unknown>;
@@ -234,9 +235,10 @@ export async function webhookRoutes(app: FastifyInstance) {
       });
     }
 
-    const protocol = request.headers["x-forwarded-proto"] ?? "https";
-    const host = request.headers["x-forwarded-host"] ?? request.headers.host;
-    const webhookUrl = `${protocol}://${host}/api/webhooks`;
+    const webhookUrl = webhookRegistration.getPublicWebhookUrl();
+    if (!webhookUrl) {
+      return reply.status(400).send({ error: "No public webhook URL configured" });
+    }
 
     try {
       const target = await highnote.webhooks.add({

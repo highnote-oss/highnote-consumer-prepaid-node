@@ -40,7 +40,7 @@ async function authenticate(
 
   let payload: { userId: number; email: string; accountHolderId: string | null };
   try {
-    payload = jwt.verify(token, JWT_SECRET) as typeof payload;
+    payload = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] }) as typeof payload;
   } catch {
     return reply.status(401).send({ error: "Invalid or expired token" });
   }
@@ -92,17 +92,20 @@ export function getUserAccountHolderId(request: FastifyRequest): string {
 const resourceCache = new Map<string, {
   financialAccountIds: Set<string>;
   cardIds: Set<string>;
+  externalAccountIds: Set<string>;
   expiresAt: number;
 }>();
 const CACHE_TTL_MS = 60_000; // 1 minute
 
 /**
  * Fetches the user's account holder and returns sets of their financial account
- * IDs and card IDs for ownership checks. Cached per account holder for 1 minute.
+ * IDs, card IDs, and external (linked bank) account IDs for ownership checks.
+ * Cached per account holder for 1 minute.
  */
 export async function getUserResourceIds(request: FastifyRequest): Promise<{
   financialAccountIds: Set<string>;
   cardIds: Set<string>;
+  externalAccountIds: Set<string>;
 }> {
   const accountHolderId = getUserAccountHolderId(request);
 
@@ -115,6 +118,7 @@ export async function getUserResourceIds(request: FastifyRequest): Promise<{
 
   const financialAccountIds = new Set<string>();
   const cardIds = new Set<string>();
+  const externalAccountIds = new Set<string>();
 
   const financialAccounts =
     ("financialAccounts" in holder && holder.financialAccounts?.edges) || [];
@@ -128,7 +132,19 @@ export async function getUserResourceIds(request: FastifyRequest): Promise<{
     }
   }
 
-  const result = { financialAccountIds, cardIds, expiresAt: Date.now() + CACHE_TTL_MS };
+  const externalAccounts =
+    ("externalFinancialAccounts" in holder && holder.externalFinancialAccounts?.edges) || [];
+
+  for (const edge of externalAccounts) {
+    if (edge?.node) externalAccountIds.add(edge.node.id);
+  }
+
+  const result = {
+    financialAccountIds,
+    cardIds,
+    externalAccountIds,
+    expiresAt: Date.now() + CACHE_TTL_MS,
+  };
   resourceCache.set(accountHolderId, result);
   return result;
 }
@@ -151,6 +167,14 @@ export function addAccountToResourceCache(accountHolderId: string, accountId: st
   const cached = resourceCache.get(accountHolderId);
   if (cached && cached.expiresAt > Date.now()) {
     cached.financialAccountIds.add(accountId);
+  }
+}
+
+/** Add an external (linked bank) account ID to the cached set. */
+export function addExternalAccountToResourceCache(accountHolderId: string, externalAccountId: string): void {
+  const cached = resourceCache.get(accountHolderId);
+  if (cached && cached.expiresAt > Date.now()) {
+    cached.externalAccountIds.add(externalAccountId);
   }
 }
 

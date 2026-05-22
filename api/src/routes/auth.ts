@@ -13,14 +13,19 @@ import {
 } from "../types.js";
 import { JWT_SECRET } from "../middleware/auth.js";
 
-const BCRYPT_ROUNDS = 10;
+const BCRYPT_ROUNDS = 12;
 const JWT_EXPIRY = "1h";
+
+// A valid bcrypt hash of a random string. Used to run a real compare on the
+// login path even when the email is unknown, so response timing does not
+// reveal whether an account exists.
+const DUMMY_PASSWORD_HASH = "$2b$12$Jg5a8VUTx8AwE5RQ27PXd.a0GOVDguW2qrWoCW5487GsKvMJgeuPq";
 
 function signToken(userId: number, email: string, accountHolderId?: string | null): string {
   return jwt.sign(
     { userId, email, accountHolderId: accountHolderId ?? null },
     JWT_SECRET,
-    { expiresIn: JWT_EXPIRY },
+    { expiresIn: JWT_EXPIRY, algorithm: "HS256" },
   );
 }
 
@@ -34,6 +39,7 @@ export async function authRoutes(app: FastifyInstance) {
       description: "Create a new user account",
       body: SignupBodySchema,
     },
+    config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
   }, async (request, reply) => {
     const { email, password } = request.body;
 
@@ -70,6 +76,7 @@ export async function authRoutes(app: FastifyInstance) {
       description: "Log in with email and password",
       body: LoginBodySchema,
     },
+    config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
   }, async (request, reply) => {
     const { email, password } = request.body;
 
@@ -79,12 +86,10 @@ export async function authRoutes(app: FastifyInstance) {
       .where(eq(schema.users.email, email))
       .limit(1);
 
-    if (!user) {
-      return reply.status(401).send({ error: "Invalid email or password" });
-    }
-
-    const valid = await bcrypt.compare(password, user.passwordHash);
-    if (!valid) {
+    // Always run a bcrypt compare — even for an unknown email — so login
+    // response timing does not reveal whether an account exists.
+    const valid = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_PASSWORD_HASH);
+    if (!user || !valid) {
       return reply.status(401).send({ error: "Invalid email or password" });
     }
 

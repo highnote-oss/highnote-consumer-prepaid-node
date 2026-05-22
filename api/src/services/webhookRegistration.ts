@@ -189,6 +189,14 @@ export function getSecret(): string | null {
 }
 
 /**
+ * The server-resolved public `/api/webhooks` URL, or `null` if none is
+ * configured. Derived only from server env — never from request headers.
+ */
+export function getPublicWebhookUrl(): string | null {
+  return resolvePublicUrl().url;
+}
+
+/**
  * Called by the receiver after a successfully-verified event. Optimistically
  * advances PENDING_VERIFICATION → ACTIVE so the cached status is correct
  * even before the next live-refresh (`getStatus()`) hits Highnote.
