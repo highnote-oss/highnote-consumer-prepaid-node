@@ -16,7 +16,7 @@
     "@highnoteplatform/document-upload": "^1.1.5",
     "@highnoteplatform/secure-inputs": "^1.7.1",
     "@tailwindcss/vite": "^4.2.4",
-    "@tanstack/react-query": "^5.100.10",
+    "@tanstack/react-query": "^5.100.14",
     "@types/leaflet": "^1.9.21",
     "leaflet": "^1.9.4",
     "react": "^19.2.5",
@@ -35,7 +35,7 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.5.0",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.59.0",
-    "vite": "^8.0.8"
+    "typescript-eslint": "^8.60.0",
+    "vite": "^8.0.14"
   }
 }
