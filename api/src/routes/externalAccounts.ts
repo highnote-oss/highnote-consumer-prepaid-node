@@ -7,6 +7,7 @@ import {
   AddFinicityBankAccountBodySchema,
   AddNonVerifiedBankAccountBodySchema,
 } from "../types.js";
+import { getUserAccountHolderId, addExternalAccountToResourceCache } from "../middleware/auth.js";
 
 function handleError(err: unknown, reply: any) {
   if (err instanceof HighnoteUserError) {
@@ -31,10 +32,14 @@ export async function externalAccountRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     try {
       const { accountHolderId, processorToken } = request.body;
+      if (accountHolderId !== getUserAccountHolderId(request)) {
+        return reply.status(403).send({ error: "Forbidden" });
+      }
       const result = await highnote.externalAccounts.addVerifiedThroughPlaid({
         accountHolderId,
         externalToken: { value: processorToken },
       });
+      addExternalAccountToResourceCache(accountHolderId, result.id);
       return result;
     } catch (err) {
       return handleError(err, reply);
@@ -50,6 +55,9 @@ export async function externalAccountRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     try {
       const { accountHolderId, name, bankAccountType, receiptId, customerId } = request.body;
+      if (accountHolderId !== getUserAccountHolderId(request)) {
+        return reply.status(403).send({ error: "Forbidden" });
+      }
       const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
       const start = new Date().toISOString();
       const result = await highnote.externalAccounts.addVerifiedThroughFinicity({
@@ -66,6 +74,7 @@ export async function externalAccountRoutes(app: FastifyInstance) {
           ],
         },
       });
+      addExternalAccountToResourceCache(accountHolderId, result.id);
       return result;
     } catch (err) {
       return handleError(err, reply);
@@ -81,6 +90,9 @@ export async function externalAccountRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     try {
       const { accountHolderId, routingNumber, accountNumber, bankAccountType, name } = request.body;
+      if (accountHolderId !== getUserAccountHolderId(request)) {
+        return reply.status(403).send({ error: "Forbidden" });
+      }
       const result = await highnote.externalAccounts.addNonVerified({
         accountHolderId,
         routingNumber,
@@ -88,6 +100,7 @@ export async function externalAccountRoutes(app: FastifyInstance) {
         bankAccountType: bankAccountType as any,
         ...(name && { name }),
       });
+      addExternalAccountToResourceCache(accountHolderId, result.id);
       return result;
     } catch (err) {
       return handleError(err, reply);

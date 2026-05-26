@@ -1,5 +1,5 @@
 # Stage 1: Build web frontend
-FROM node:22-alpine AS web-builder
+FROM node:22.22.3-alpine3.22 AS web-builder
 WORKDIR /app/web
 COPY web/package*.json ./
 RUN npm ci
@@ -7,7 +7,7 @@ COPY web/ ./
 RUN npm run build
 
 # Stage 2: Build API server
-FROM node:22-alpine AS api-builder
+FROM node:22.22.3-alpine3.22 AS api-builder
 WORKDIR /app/api
 COPY api/package*.json ./
 RUN npm ci --ignore-scripts
@@ -18,7 +18,7 @@ COPY api/src ./src
 RUN npx tsc
 
 # Stage 3: Production runtime
-FROM node:22-alpine
+FROM node:22.22.3-alpine3.22
 WORKDIR /app
 
 # Copy compiled API + dependencies
@@ -31,6 +31,10 @@ COPY --from=web-builder /app/web/dist ./public
 
 # Create data directory for SQLite
 RUN mkdir -p /app/data
+
+# Run as a non-root user; chown -R covers /app/data so SQLite can write its DB
+RUN addgroup -S app && adduser -S app -G app && chown -R app:app /app
+USER app
 
 ENV NODE_ENV=production
 ENV PORT=3000

@@ -7,6 +7,8 @@ import {
   type ZodTypeProvider,
 } from "fastify-type-provider-zod";
 import fastifyCors from "@fastify/cors";
+import fastifyHelmet from "@fastify/helmet";
+import fastifyRateLimit from "@fastify/rate-limit";
 import fastifySwagger from "@fastify/swagger";
 import fastifySwaggerUi from "@fastify/swagger-ui";
 import fastifyStatic from "@fastify/static";
@@ -34,8 +36,23 @@ import * as webhookRegistration from "./services/webhookRegistration.js";
 
 const app = Fastify({ logger: true });
 
-// CORS — allow frontend dev server
-await app.register(fastifyCors, { origin: process.env.CORS_ORIGIN ?? "http://localhost:5173" });
+// CORS — the frontend dev server runs cross-origin in development. In
+// production the SPA is served same-origin by this server, so CORS stays
+// disabled unless a cross-origin frontend is explicitly configured.
+const corsOrigin =
+  process.env.NODE_ENV === "production"
+    ? (process.env.CORS_ORIGIN ?? false)
+    : (process.env.CORS_ORIGIN ?? "http://localhost:5173");
+await app.register(fastifyCors, { origin: corsOrigin });
+
+// Security headers. CSP is intentionally disabled — a strict policy breaks the
+// embedded Highnote SDK iframes (card viewer, secure inputs, document upload)
+// and the Leaflet basemap tiles. A tuned CSP is a separate follow-up.
+await app.register(fastifyHelmet, { contentSecurityPolicy: false });
+
+// Rate limiting — opt-in per route (see auth routes), not global, so normal
+// SPA API traffic is unaffected.
+await app.register(fastifyRateLimit, { global: false });
 
 // Raw body access for webhook signature verification
 await app.register(fastifyRawBody, { field: "rawBody", encoding: "utf8", runFirst: true });

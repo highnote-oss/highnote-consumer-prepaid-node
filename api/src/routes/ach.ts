@@ -1,9 +1,10 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { randomUUID } from "crypto";
 import { highnote } from "../services/highnote.js";
 import { HighnoteUserError, HighnoteAccessDeniedError } from "@highnote-oss/nodejs-sdk";
 import { InitiateAchTransferBodySchema, CreateOneTimeAchTransferBodySchema, CreateRecurringAchTransferBodySchema, CancelScheduledTransferBodySchema } from "../types.js";
+import { getUserResourceIds } from "../middleware/auth.js";
 
 function handleError(err: unknown, reply: any) {
   if (err instanceof HighnoteUserError) {
@@ -20,6 +21,37 @@ function toAmount(dollars: number) {
   return { value: Math.round(dollars * 100), currencyCode: "USD" as any };
 }
 
+/** True only if both ACH transfer endpoints belong to the authenticated user. */
+async function ownsBothEndpoints(
+  request: FastifyRequest,
+  fromId: string,
+  toId: string,
+): Promise<boolean> {
+  const { financialAccountIds, externalAccountIds } = await getUserResourceIds(request);
+  const owned = new Set([...financialAccountIds, ...externalAccountIds]);
+  return owned.has(fromId) && owned.has(toId);
+}
+
+/**
+ * True if the scheduled transfer is incoming to one of the user's financial
+ * accounts. The SDK exposes no scheduled-transfer getter, so ownership is
+ * resolved by scanning the user's own accounts.
+ */
+async function ownsScheduledTransfer(
+  request: FastifyRequest,
+  scheduledTransferId: string,
+): Promise<boolean> {
+  const { financialAccountIds } = await getUserResourceIds(request);
+  for (const faId of financialAccountIds) {
+    const account = (await highnote.financialAccounts.get(faId)) as {
+      incomingScheduledTransfers?: { edges?: Array<{ node?: { id: string } | null } | null> };
+    };
+    const edges = account.incomingScheduledTransfers?.edges ?? [];
+    if (edges.some((e) => e?.node?.id === scheduledTransferId)) return true;
+  }
+  return false;
+}
+
 export async function achTransferRoutes(app: FastifyInstance) {
   const typedApp = app.withTypeProvider<ZodTypeProvider>();
 
@@ -32,6 +64,9 @@ export async function achTransferRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     try {
       const { fromFinancialAccountId, toFinancialAccountId, amount, purpose, companyEntryDescription, individualName } = request.body;
+      if (!(await ownsBothEndpoints(request, fromFinancialAccountId, toFinancialAccountId))) {
+        return reply.status(403).send({ error: "One or more accounts do not belong to this user" });
+      }
       const result = await highnote.ach.initiateTransfer({
         fromFinancialAccountId,
         toFinancialAccountId,
@@ -64,6 +99,9 @@ export async function achTransferRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     try {
       const { fromFinancialAccountId, toFinancialAccountId, amount, scheduledDate, companyEntryDescription, individualName } = request.body;
+      if (!(await ownsBothEndpoints(request, fromFinancialAccountId, toFinancialAccountId))) {
+        return reply.status(403).send({ error: "One or more accounts do not belong to this user" });
+      }
       const result = await highnote.ach.createOneTimeTransfer({
         descriptor: {
           companyEntryDescription: companyEntryDescription!,
@@ -99,6 +137,9 @@ export async function achTransferRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     try {
       const { fromFinancialAccountId, toFinancialAccountId, amount, dayOfMonth, companyEntryDescription, individualName } = request.body;
+      if (!(await ownsBothEndpoints(request, fromFinancialAccountId, toFinancialAccountId))) {
+        return reply.status(403).send({ error: "One or more accounts do not belong to this user" });
+      }
       const result = await highnote.ach.createRecurringTransfer({
         descriptor: {
           companyEntryDescription: companyEntryDescription!,
@@ -135,6 +176,9 @@ export async function achTransferRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     try {
       const { scheduledTransferId } = request.body;
+      if (!(await ownsScheduledTransfer(request, scheduledTransferId))) {
+        return reply.status(403).send({ error: "Scheduled transfer does not belong to this user" });
+      }
       const result = await highnote.ach.cancelTransfer({ scheduledTransferId });
       return result;
     } catch (err) {

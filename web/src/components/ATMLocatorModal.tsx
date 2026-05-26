@@ -144,13 +144,42 @@ export function ATMLocatorModal({ cardId, onClose }: Props) {
           icon: selectedIndex === i ? selectedIcon : defaultIcon,
         }).addTo(map);
 
-        const popupHtml = `<div class="text-xs">
-          <p class="font-semibold">${atm.name || "ATM"}</p>
-          ${atm.address ? `<p class="text-gray-500 mt-0.5">${atm.address.streetAddress}, ${atm.address.locality}</p>` : ""}
-          ${atm.distance ? `<p class="text-indigo-600 font-medium mt-1">${atm.distance.length.toFixed(1)} mi away</p>` : ""}
-          <a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}" target="_blank" rel="noopener noreferrer" class="inline-block mt-1 text-indigo-600 hover:text-indigo-800 font-medium">Directions</a>
-        </div>`;
-        marker.bindPopup(popupHtml);
+        // Build the popup with DOM nodes so ATM-locator strings (name, address)
+        // are set via textContent and cannot inject HTML.
+        const popup = document.createElement("div");
+        popup.className = "text-xs";
+        popup.appendChild(
+          Object.assign(document.createElement("p"), {
+            className: "font-semibold",
+            textContent: atm.name || "ATM",
+          }),
+        );
+        if (atm.address) {
+          popup.appendChild(
+            Object.assign(document.createElement("p"), {
+              className: "text-gray-500 mt-0.5",
+              textContent: `${atm.address.streetAddress}, ${atm.address.locality}`,
+            }),
+          );
+        }
+        if (atm.distance) {
+          popup.appendChild(
+            Object.assign(document.createElement("p"), {
+              className: "text-indigo-600 font-medium mt-1",
+              textContent: `${atm.distance.length.toFixed(1)} mi away`,
+            }),
+          );
+        }
+        popup.appendChild(
+          Object.assign(document.createElement("a"), {
+            href: `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`,
+            target: "_blank",
+            rel: "noopener noreferrer",
+            className: "inline-block mt-1 text-indigo-600 hover:text-indigo-800 font-medium",
+            textContent: "Directions",
+          }),
+        );
+        marker.bindPopup(popup);
         marker.on("click", () => selectATM(i));
         return marker;
       })
