@@ -14,7 +14,9 @@ please report them on **that repo's** security tab, not here:
 
 - [`highnote-oss/nodejs-sdk`](https://github.com/highnote-oss/nodejs-sdk/security/advisories/new)
 
-We will acknowledge receipt within 3 business days.
+We aim to acknowledge reports as quickly as we can, but cannot commit to a
+specific response time — this example app is maintained on a best-effort
+basis.
 
 ## Status: reference demo, not production-hardened
 
