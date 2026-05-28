@@ -23,7 +23,7 @@
     "bcrypt": "^6.0.0",
     "better-sqlite3": "^12.9.0",
     "dotenv": "^17.4.2",
-    "drizzle-orm": "^0.45.2",
+    "drizzle-orm": "^1.0.0-rc.3",
     "fastify": "^5.8.5",
     "fastify-raw-body": "^5.0.0",
     "fastify-type-provider-zod": "^6.1.0",
@@ -36,7 +36,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.19.18",
     "@vitest/coverage-v8": "^4.1.7",
-    "drizzle-kit": "^0.31.10",
+    "drizzle-kit": "^1.0.0-rc.3",
     "tsx": "^4.19.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.7"
