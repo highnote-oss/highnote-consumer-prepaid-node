@@ -47,12 +47,13 @@ const DOCUMENT_TYPE_LABELS: Record<string, string> = {
 
 function humanizeEnumLabel(raw: string): string {
   if (DOCUMENT_TYPE_LABELS[raw]) return DOCUMENT_TYPE_LABELS[raw];
-  return raw
-    .toLowerCase()
-    .split("_")
-    .filter(Boolean)
-    .map((w) => w[0].toUpperCase() + w.slice(1))
-    .join(" ");
+  // The SDK occasionally feeds the option label through its own humanizer
+  // before we see it (e.g. "utility bill" with lowercase b after the
+  // dropdown is rebuilt mid-session). Normalize the separators first so a
+  // mid-pass UPPERCASE_ENUM and an already-humanized "lowercase phrase"
+  // both end up Title Cased.
+  const normalized = raw.toLowerCase().split(/[_\s]+/).filter(Boolean);
+  return normalized.map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
 }
 
 // Sentinel value for the "Select a document type" placeholder we inject at
@@ -337,47 +338,54 @@ export function ApplyPage() {
           // SDK rebuilds the dropdown later.
           const container = document.getElementById("document-upload-container");
           if (container) {
+            // The SDK rebuilds the dropdown + Upload button after each
+            // successful upload (it replaces `innerHTML` to reflect newly
+            // satisfied document requirements). The new elements lose any
+            // listeners attached only at `onLoad`, so we run all
+            // enhancements — humanize, placeholder, click guard, change
+            // listener — on every mutation. The dataset flags make each
+            // attachment idempotent against the current element identity.
             const enhance = () => {
               humanizeSdkLabels(container);
               ensureDocumentTypePlaceholder(container);
+
+              const uploadBtn = container.querySelector("#document-upload-button");
+              if (uploadBtn instanceof HTMLElement && !uploadBtn.dataset.placeholderGuard) {
+                uploadBtn.dataset.placeholderGuard = "1";
+                uploadBtn.addEventListener(
+                  "click",
+                  (e) => {
+                    const sel = container.querySelector("#document-sdk-type");
+                    if (
+                      sel instanceof HTMLSelectElement &&
+                      sel.value === DOC_TYPE_PLACEHOLDER_VALUE
+                    ) {
+                      e.preventDefault();
+                      e.stopImmediatePropagation();
+                      setError("Pick a document type before uploading.");
+                    }
+                  },
+                  true,
+                );
+              }
+
+              // Clear the placeholder error as soon as the user picks a
+              // real option — banner otherwise lingers after they've
+              // corrected the issue.
+              const select = container.querySelector("#document-sdk-type");
+              if (select instanceof HTMLSelectElement && !select.dataset.placeholderClear) {
+                select.dataset.placeholderClear = "1";
+                select.addEventListener("change", () => {
+                  if (select.value !== DOC_TYPE_PLACEHOLDER_VALUE) {
+                    setError(null);
+                  }
+                });
+              }
             };
             enhance();
             const observer = new MutationObserver(enhance);
             observer.observe(container, { childList: true, subtree: true });
             sdkObserverRef.current = observer;
-
-            const uploadBtn = container.querySelector("#document-upload-button");
-            if (uploadBtn instanceof HTMLElement && !uploadBtn.dataset.placeholderGuard) {
-              uploadBtn.dataset.placeholderGuard = "1";
-              uploadBtn.addEventListener(
-                "click",
-                (e) => {
-                  const select = container.querySelector("#document-sdk-type");
-                  if (
-                    select instanceof HTMLSelectElement &&
-                    select.value === DOC_TYPE_PLACEHOLDER_VALUE
-                  ) {
-                    e.preventDefault();
-                    e.stopImmediatePropagation();
-                    setError("Pick a document type before uploading.");
-                  }
-                },
-                true,
-              );
-            }
-
-            // Clear the "Pick a document type before uploading" error as
-            // soon as the user makes a real selection — otherwise the
-            // banner lingers even after they've corrected the issue.
-            const select = container.querySelector("#document-sdk-type");
-            if (select instanceof HTMLSelectElement && !select.dataset.placeholderClear) {
-              select.dataset.placeholderClear = "1";
-              select.addEventListener("change", () => {
-                if (select.value !== DOC_TYPE_PLACEHOLDER_VALUE) {
-                  setError(null);
-                }
-              });
-            }
           }
         },
         onSuccess: () => {
