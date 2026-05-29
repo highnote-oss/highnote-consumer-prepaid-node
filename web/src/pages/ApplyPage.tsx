@@ -55,16 +55,40 @@ function humanizeEnumLabel(raw: string): string {
     .join(" ");
 }
 
+// Sentinel value for the "Select a document type" placeholder we inject at
+// the top of the SDK dropdown. The SDK reads `select.options[selectedIndex].value`
+// when Upload is clicked — a sentinel string makes the placeholder
+// distinguishable both for the click guard below and from any real document
+// enum the SDK might add in future.
+const DOC_TYPE_PLACEHOLDER_VALUE = "__doc_type_placeholder__";
+
 function humanizeSdkLabels(root: ParentNode): void {
   const select = root.querySelector("#document-sdk-type");
   if (!(select instanceof HTMLSelectElement)) return;
   for (const opt of Array.from(select.options)) {
+    if (opt.value === DOC_TYPE_PLACEHOLDER_VALUE) continue;
     const recommended = /\(\s*recommended\s*\)/i.test(opt.text);
     const stripped = opt.text.replace(/\s*\(\s*recommended\s*\)\s*$/i, "").trim();
     const humanized = humanizeEnumLabel(stripped);
     const next = recommended ? `${humanized} — Recommended` : humanized;
     if (opt.text !== next) opt.text = next;
   }
+}
+
+function ensureDocumentTypePlaceholder(root: ParentNode): void {
+  const select = root.querySelector("#document-sdk-type");
+  if (!(select instanceof HTMLSelectElement)) return;
+  const exists = Array.from(select.options).some(
+    (o) => o.value === DOC_TYPE_PLACEHOLDER_VALUE,
+  );
+  if (exists) return;
+  const placeholder = document.createElement("option");
+  placeholder.value = DOC_TYPE_PLACEHOLDER_VALUE;
+  placeholder.text = "Select a document type";
+  placeholder.disabled = true;
+  placeholder.hidden = true;
+  select.insertBefore(placeholder, select.firstChild);
+  placeholder.selected = true;
 }
 
 export function ApplyPage() {
@@ -302,16 +326,45 @@ export function ApplyPage() {
         },
         onLoad: () => {
           setDocumentUploading(false);
-          // Rewrite the SDK's raw-enum option labels to friendly names. The
-          // dropdown is in our DOM (the SDK uses our `selector` mount point),
-          // so we can mutate option text directly. A MutationObserver re-runs
-          // on later additions in case option content arrives asynchronously.
+          // The SDK uses our `selector` as the mount point, so its dropdown
+          // and upload button are in our DOM. After load we (1) rewrite raw
+          // enum option labels to friendly names, (2) inject a non-selectable
+          // "Select a document type" placeholder so the user has to make a
+          // conscious choice rather than accidentally submitting whatever
+          // Highnote happened to return first, and (3) guard the Upload
+          // button against the SDK's silent no-op when the placeholder is
+          // still selected. A MutationObserver re-applies (1)+(2) if the
+          // SDK rebuilds the dropdown later.
           const container = document.getElementById("document-upload-container");
           if (container) {
-            humanizeSdkLabels(container);
-            const observer = new MutationObserver(() => humanizeSdkLabels(container));
+            const enhance = () => {
+              humanizeSdkLabels(container);
+              ensureDocumentTypePlaceholder(container);
+            };
+            enhance();
+            const observer = new MutationObserver(enhance);
             observer.observe(container, { childList: true, subtree: true });
             sdkObserverRef.current = observer;
+
+            const uploadBtn = container.querySelector("#document-upload-button");
+            if (uploadBtn instanceof HTMLElement && !uploadBtn.dataset.placeholderGuard) {
+              uploadBtn.dataset.placeholderGuard = "1";
+              uploadBtn.addEventListener(
+                "click",
+                (e) => {
+                  const select = container.querySelector("#document-sdk-type");
+                  if (
+                    select instanceof HTMLSelectElement &&
+                    select.value === DOC_TYPE_PLACEHOLDER_VALUE
+                  ) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    setError("Pick a document type before uploading.");
+                  }
+                },
+                true,
+              );
+            }
           }
         },
         onSuccess: () => {
