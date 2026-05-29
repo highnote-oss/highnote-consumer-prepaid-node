@@ -365,6 +365,19 @@ export function ApplyPage() {
                 true,
               );
             }
+
+            // Clear the "Pick a document type before uploading" error as
+            // soon as the user makes a real selection — otherwise the
+            // banner lingers even after they've corrected the issue.
+            const select = container.querySelector("#document-sdk-type");
+            if (select instanceof HTMLSelectElement && !select.dataset.placeholderClear) {
+              select.dataset.placeholderClear = "1";
+              select.addEventListener("change", () => {
+                if (select.value !== DOC_TYPE_PLACEHOLDER_VALUE) {
+                  setError(null);
+                }
+              });
+            }
           }
         },
         onSuccess: () => {
