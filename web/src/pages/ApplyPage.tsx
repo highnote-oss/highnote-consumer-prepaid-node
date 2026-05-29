@@ -34,6 +34,39 @@ const WORKFLOW_LABELS: Record<string, string> = {
   OFFER_MANAGEMENT: "Offer Management",
 };
 
+// The Highnote document-upload SDK renders option labels as the raw enum value
+// (e.g. "DRIVERS_LICENSE") suffixed with "(Recommended)" when applicable. Map
+// to friendly names; unknown enums fall back to a generic Title Case formatter.
+const DOCUMENT_TYPE_LABELS: Record<string, string> = {
+  DRIVERS_LICENSE: "Driver's License",
+  LEASE_AGREEMENT: "Lease Agreement",
+  UTILITY_BILL: "Utility Bill",
+  PASSPORT: "Passport",
+  STATE_ID: "State ID",
+};
+
+function humanizeEnumLabel(raw: string): string {
+  if (DOCUMENT_TYPE_LABELS[raw]) return DOCUMENT_TYPE_LABELS[raw];
+  return raw
+    .toLowerCase()
+    .split("_")
+    .filter(Boolean)
+    .map((w) => w[0].toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+function humanizeSdkLabels(root: ParentNode): void {
+  const select = root.querySelector("#document-sdk-type");
+  if (!(select instanceof HTMLSelectElement)) return;
+  for (const opt of Array.from(select.options)) {
+    const recommended = /\(\s*recommended\s*\)/i.test(opt.text);
+    const stripped = opt.text.replace(/\s*\(\s*recommended\s*\)\s*$/i, "").trim();
+    const humanized = humanizeEnumLabel(stripped);
+    const next = recommended ? `${humanized} — Recommended` : humanized;
+    if (opt.text !== next) opt.text = next;
+  }
+}
+
 export function ApplyPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -45,6 +78,7 @@ export function ApplyPage() {
   const [selectedProduct, setSelectedProduct] = useState<CardProduct | null>(null);
   const [documentUploading, setDocumentUploading] = useState(false);
   const documentUploadRef = useRef<{ unmount: () => void; endSession: () => Promise<boolean> } | null>(null);
+  const sdkObserverRef = useRef<MutationObserver | null>(null);
   const abortRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -53,6 +87,8 @@ export function ApplyPage() {
     return () => {
       abortRef.current = true;
       if (timerRef.current) clearTimeout(timerRef.current);
+      sdkObserverRef.current?.disconnect();
+      sdkObserverRef.current = null;
       if (documentUploadRef.current) {
         documentUploadRef.current.unmount();
         documentUploadRef.current = null;
@@ -266,10 +302,23 @@ export function ApplyPage() {
         },
         onLoad: () => {
           setDocumentUploading(false);
+          // Rewrite the SDK's raw-enum option labels to friendly names. The
+          // dropdown is in our DOM (the SDK uses our `selector` mount point),
+          // so we can mutate option text directly. A MutationObserver re-runs
+          // on later additions in case option content arrives asynchronously.
+          const container = document.getElementById("document-upload-container");
+          if (container) {
+            humanizeSdkLabels(container);
+            const observer = new MutationObserver(() => humanizeSdkLabels(container));
+            observer.observe(container, { childList: true, subtree: true });
+            sdkObserverRef.current = observer;
+          }
         },
         onSuccess: () => {
           // Clean up the iframe and show an explicit confirmation step.
           // The SDK widget otherwise just resets, leaving no sign the upload worked.
+          sdkObserverRef.current?.disconnect();
+          sdkObserverRef.current = null;
           if (documentUploadRef.current) {
             documentUploadRef.current.unmount();
             documentUploadRef.current = null;
@@ -485,10 +534,17 @@ export function ApplyPage() {
                 background: #4338ca;
                 box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
               }
-              .document-onUpload-overlay {
+              /* The SDK creates the overlay + spanner up front with their
+               * default classes, then swaps them to class="show" while an
+               * upload is in flight (see lib/esm/module.js). Style the active
+               * .show state, not the default class — otherwise the
+               * "Uploading file, please be patient" line is visible before
+               * the user has picked a file. */
+              .document-onUpload-overlay,
+              .document-onUpload-spanner {
                 display: none;
               }
-              .document-onUpload-spanner {
+              #document-upload-container .show {
                 display: flex;
                 align-items: center;
                 gap: 0.75rem;
@@ -498,7 +554,7 @@ export function ApplyPage() {
                 border-radius: 0.5rem;
                 border: 1px solid #e0e7ff;
               }
-              .document-onUpload-spanner p {
+              #document-upload-container .show p {
                 font-size: 0.8125rem;
                 color: #4338ca;
                 margin: 0;
@@ -566,6 +622,31 @@ export function ApplyPage() {
                       </span>
                     ) : "Select & Upload Documents"}
                   </button>
+                </div>
+              )}
+
+              {/* Step instructions + accepted formats (visible once SDK is mounted) */}
+              {documentUploadRef.current && (
+                <div className="border-b border-gray-100 px-6 py-3">
+                  <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-gray-600">
+                    <li className="flex items-center gap-1.5">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-[10px] font-semibold text-indigo-700">1</span>
+                      Pick document type
+                    </li>
+                    <li aria-hidden className="text-gray-300">›</li>
+                    <li className="flex items-center gap-1.5">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-[10px] font-semibold text-indigo-700">2</span>
+                      Choose file
+                    </li>
+                    <li aria-hidden className="text-gray-300">›</li>
+                    <li className="flex items-center gap-1.5">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-[10px] font-semibold text-indigo-700">3</span>
+                      Click Upload
+                    </li>
+                  </ol>
+                  <p className="mt-2 text-xs text-gray-400">
+                    Accepted formats: PDF, PNG, JPG (max 10 MB)
+                  </p>
                 </div>
               )}
 
