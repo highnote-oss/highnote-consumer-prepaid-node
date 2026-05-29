@@ -21,6 +21,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { ErrorMessage } from "../components/ErrorMessage";
 import { EmptyState } from "../components/EmptyState";
+import { useEnvironment } from "../context/EnvironmentContext";
 
 type ApplyStep = "select" | "applying" | "document_upload" | "document_submitted" | "approved" | "issuing" | "done" | "processing";
 
@@ -96,6 +97,7 @@ export function ApplyPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
+  const { isTestEnv } = useEnvironment();
   const [step, setStep] = useState<ApplyStep>("select");
   const [error, setError] = useState<string | null>(null);
   const [application, setApplication] = useState<Application | null>(null);
@@ -445,22 +447,33 @@ export function ApplyPage() {
           </div>
         )}
 
-        {/* Verification results */}
-        {verification && (
-          <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-            <div className="mb-3 flex items-center justify-between">
-              <h4 className="text-sm font-medium text-gray-700">Identity Verification</h4>
+        {/* Verification results — TEST ENV ONLY. The per-check codes (e.g.
+            ADDRESS_MISMATCH) are operationally useful for the demo but in
+            production they tell an applicant using stolen data exactly which
+            field to forge next. Gate behind isTestEnv and frame as debug. */}
+        {isTestEnv && verification && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-4 shadow-sm">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <h4 className="text-sm font-medium text-amber-900">Identity Verification</h4>
+                <span className="rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900">
+                  Test debug
+                </span>
+              </div>
               <StatusBadge status={verification.status ?? "PENDING"} />
             </div>
+            <p className="mb-2 text-[10px] uppercase tracking-wide text-amber-700">
+              Not visible to applicants in production
+            </p>
             {verification.reason && (
-              <p className="mb-2 text-xs text-gray-500">{verification.reason}</p>
+              <p className="mb-2 text-xs text-amber-900">{verification.reason}</p>
             )}
             {verification.results && verification.results.length > 0 && (
               <div className="space-y-1">
                 {verification.results.map((r, i) => (
                   <div key={i} className="flex items-start gap-2 text-xs">
-                    <span className="font-mono text-gray-400">{r.code}</span>
-                    {r.description && <span className="text-gray-500">{r.description}</span>}
+                    <span className="font-mono text-amber-700">{r.code}</span>
+                    {r.description && <span className="text-amber-900">{r.description}</span>}
                   </div>
                 ))}
               </div>
