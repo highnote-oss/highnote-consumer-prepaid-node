@@ -35,7 +35,6 @@ import {
   simulateVerify,
   simulateClear,
   simulateDeposit,
-  simulateRefund,
   simulateFinancialAccountInitiateClosure,
   simulateFinancialAccountClose,
 } from "../api/simulate";
@@ -69,7 +68,6 @@ export function AccountDetailPage() {
   const [viewerError, setViewerError] = useState<string | null>(null);
   const viewerUnmountRef = useRef<(() => Promise<void>) | null>(null);
   const viewerToggleMaskRef = useRef<(() => void) | null>(null);
-  const [showCvv, setShowCvv] = useState(false);
   // Optimistic cards from mutations — kept in state, keyed by id
   const [optimisticCards, setOptimisticCards] = useState<Map<string, PaymentCard>>(new Map());
   const [pollUntil, setPollUntil] = useState(0);
@@ -158,7 +156,6 @@ export function AccountDetailPage() {
 
   const {
     data: scheduledTransfers,
-    isLoading: scheduledLoading,
   } = useQuery({
     queryKey: ["scheduled-transfers", id],
     queryFn: () => listScheduledTransfers(id!),
@@ -287,6 +284,9 @@ export function AccountDetailPage() {
           },
         },
         environment: "test",
+        // onInput is required by SecureInputsConfig (secure-inputs ≥1.8.0);
+        // the demo doesn't react to per-keystroke input state, so it's a no-op.
+        onInput: () => {},
         onSuccess: () => {
           setPinStatus("success");
         },
@@ -354,7 +354,6 @@ export function AccountDetailPage() {
     setViewerCardId(null);
     setViewerStatus("idle");
     setViewerError(null);
-    setShowCvv(false);
   }, []);
 
   // Cleanup on unmount
