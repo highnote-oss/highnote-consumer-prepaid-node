@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   listCardProducts,
-  createApplication,
   getApplication,
   getMe,
   issueFinancialAccount,
@@ -102,7 +101,6 @@ export function ApplyPage() {
   const [error, setError] = useState<string | null>(null);
   const [application, setApplication] = useState<Application | null>(null);
   const [accountName, setAccountName] = useState("My Card Account");
-  const [selectedProduct, setSelectedProduct] = useState<CardProduct | null>(null);
   const [documentUploading, setDocumentUploading] = useState(false);
   const documentUploadRef = useRef<{ unmount: () => void; endSession: () => Promise<boolean> } | null>(null);
   const sdkObserverRef = useRef<MutationObserver | null>(null);
@@ -183,7 +181,6 @@ export function ApplyPage() {
   }
 
   async function handleApply(product: CardProduct) {
-    setSelectedProduct(product);
     setError(null);
     setStep("applying");
 
@@ -324,7 +321,10 @@ export function ApplyPage() {
           selector: "#document-upload-container",
         },
         onError: (error) => {
-          setError(`Document upload error: ${error.message ?? error.name}`);
+          // DocumentUploadError is a union; only some members carry `message`
+          // (e.g. InvalidCredentialError does not), so narrow before reading it.
+          const detail = ("message" in error && error.message) || error.name;
+          setError(`Document upload error: ${detail}`);
           setDocumentUploading(false);
         },
         onLoad: () => {

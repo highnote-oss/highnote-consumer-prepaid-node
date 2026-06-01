@@ -2,10 +2,11 @@ import { useNavigate } from "react-router-dom";
 
 interface PageHeaderProps {
   title: string;
+  subtitle?: string;
   showBack?: boolean;
 }
 
-export function PageHeader({ title, showBack }: PageHeaderProps) {
+export function PageHeader({ title, subtitle, showBack }: PageHeaderProps) {
   const navigate = useNavigate();
 
   return (
@@ -30,7 +31,10 @@ export function PageHeader({ title, showBack }: PageHeaderProps) {
           </svg>
         </button>
       )}
-      <h1 className="text-2xl font-semibold text-gray-900">{title}</h1>
+      <div>
+        <h1 className="text-2xl font-semibold text-gray-900">{title}</h1>
+        {subtitle && <p className="mt-1 text-sm text-gray-500">{subtitle}</p>}
+      </div>
     </div>
   );
 }

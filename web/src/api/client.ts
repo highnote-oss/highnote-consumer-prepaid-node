@@ -248,7 +248,7 @@ export interface AccountHolder {
   externalId?: string;
   createdAt?: string;
   email?: string;
-  name?: { givenName: string; familyName: string };
+  name?: { givenName: string; familyName: string; middleName?: string };
   dateOfBirth?: string;
   billingAddress?: {
     streetAddress: string;
