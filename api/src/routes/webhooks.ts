@@ -26,6 +26,10 @@ export async function webhookRoutes(app: FastifyInstance) {
       tags: ["Webhooks"],
       description: "Receive Highnote webhook events",
     },
+    // Exempt from the global rate limit: this is the machine-to-machine
+    // receiver for Highnote's webhook deliveries, which arrive in legitimate
+    // bursts and are authenticated by signature verification below, not by IP.
+    config: { rateLimit: false },
   }, async (request, reply) => {
     const secret = webhookRegistration.getSecret();
 

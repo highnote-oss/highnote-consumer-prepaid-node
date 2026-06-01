@@ -54,8 +54,14 @@ concern and the change you would make if you adopted the app for real users.
   passwords against a breached-password corpus.
 - **No email verification, password reset, MFA, or account lockout.** Any
   email can sign up immediately; there is no forgot-password flow, no second
-  factor, and no per-account lockout beyond the 5/min rate limit on
-  `/api/auth/login`.
+  factor, and no per-account lockout. Rate limiting is **per client IP**, not
+  per account: login/signup are capped at 5/min and all other routes share a
+  generous 300/min global default (the webhook receiver is exempt). That blunts
+  brute-force and credential-stuffing from a single source but, being IP-keyed,
+  is defeatable by an attacker rotating IPs — production should add per-account
+  lockout and a distributed limiter store. The per-IP keying relies on
+  `trustProxy` (enabled only when `NODE_ENV=production`, i.e. behind Render's
+  proxy); locally the socket address is used.
 - **Stateless JWTs, no server-side revocation.** Tokens have a 1-hour expiry
   and logout only clears client-side storage. A real app should use
   short-lived access tokens plus refresh tokens with a server-side

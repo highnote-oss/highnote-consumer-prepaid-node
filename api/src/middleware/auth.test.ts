@@ -84,4 +84,27 @@ describe("JWT auth middleware", () => {
     const res = await app.inject({ method: "GET", url: "/api/me" });
     expect(res.statusCode).toBe(401);
   });
+
+  it("applies the global rate limit to authenticated routes (301st request → 429)", async () => {
+    const { user } = await seedTestUser();
+    const token = signTestToken({
+      userId: user.id,
+      email: user.email,
+      accountHolderId: null,
+    });
+    const headers = { authorization: `Bearer ${token}` };
+    // Dedicated IP so this flood doesn't drain the bucket other tests share.
+    const ip = "10.77.0.1";
+
+    // The global default is 300/min/IP. Burn the budget on an authenticated
+    // route, then confirm the next request is throttled — proving the auth-hook
+    // routes are no longer unlimited (the CodeQL js/missing-rate-limiting gap).
+    for (let i = 0; i < 300; i += 1) {
+      const res = await app.inject({ method: "GET", url: "/api/me", headers, remoteAddress: ip });
+      expect(res.statusCode).toBe(200);
+    }
+
+    const throttled = await app.inject({ method: "GET", url: "/api/me", headers, remoteAddress: ip });
+    expect(throttled.statusCode).toBe(429);
+  });
 });

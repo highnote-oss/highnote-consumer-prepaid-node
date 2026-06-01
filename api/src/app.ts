@@ -75,7 +75,16 @@ export function ensureTables(): void {
  * drive the app in-process without binding a socket.
  */
 export async function buildApp(): Promise<FastifyInstance> {
-  const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? "info" } });
+  // In deployed-demo mode the app sits behind Render's proxy, so the socket
+  // peer is the proxy, not the client. Trust `X-Forwarded-For` there so
+  // `request.ip` — and therefore the rate-limit bucket key — reflects the real
+  // client. Only enabled in production: locally there is no trusted proxy in
+  // front, so we must NOT honor a client-supplied X-Forwarded-For (it would let
+  // anyone spoof their IP to dodge the limiter).
+  const app = Fastify({
+    logger: { level: process.env.LOG_LEVEL ?? "info" },
+    trustProxy: process.env.NODE_ENV === "production",
+  });
 
   // CORS — the frontend dev server runs cross-origin in development. In
   // production the SPA is served same-origin by this server, so CORS stays
@@ -133,9 +142,19 @@ export async function buildApp(): Promise<FastifyInstance> {
     },
   });
 
-  // Rate limiting — opt-in per route (see auth routes), not global, so normal
-  // SPA API traffic is unaffected.
-  await app.register(fastifyRateLimit, { global: false });
+  // Rate limiting. A generous global default (per client IP) covers every
+  // route — including the authenticated `/api/*` routes guarded by the auth
+  // hook, which would otherwise be unthrottled (CodeQL js/missing-rate-limiting
+  // on the authorization hook). 300/min/IP is far above what a single user's
+  // SPA bursts on page load, but well below brute-force / credential-stuffing
+  // volume. Routes opt out (`config.rateLimit: false`) or tighten the window
+  // (login/signup at 5/min) via their own per-route config, which overrides
+  // this default.
+  await app.register(fastifyRateLimit, {
+    global: true,
+    max: 300,
+    timeWindow: "1 minute",
+  });
 
   // Raw body access for webhook signature verification
   await app.register(fastifyRawBody, { field: "rawBody", encoding: "utf8", runFirst: true });
