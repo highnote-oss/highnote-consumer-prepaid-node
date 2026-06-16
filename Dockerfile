@@ -1,5 +1,9 @@
 # Stage 1: Build web frontend
 FROM node:22.22.3-alpine3.22 AS web-builder
+# node:22 bundles npm 10.9.x, but our lockfiles are generated with npm 11.
+# npm 10 can't reconcile npm 11's nested-dependency lockfile layout (e.g. the
+# tsx-nested esbuild platform deps) and fails `npm ci` with "Missing from lock file".
+RUN npm install -g npm@11
 WORKDIR /app/web
 COPY web/package*.json ./
 RUN npm ci
@@ -8,6 +12,8 @@ RUN npm run build
 
 # Stage 2: Build API server
 FROM node:22.22.3-alpine3.22 AS api-builder
+# See web-builder above: match the npm 11 that generated package-lock.json.
+RUN npm install -g npm@11
 WORKDIR /app/api
 COPY api/package*.json ./
 RUN npm ci --ignore-scripts
