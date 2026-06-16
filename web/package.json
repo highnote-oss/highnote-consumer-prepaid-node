@@ -15,7 +15,7 @@
     "@highnoteplatform/card-viewer": "^1.4.2",
     "@highnoteplatform/document-upload": "^1.1.5",
     "@highnoteplatform/secure-inputs": "^1.8.0",
-    "@tailwindcss/vite": "^4.2.4",
+    "@tailwindcss/vite": "^4.3.1",
     "@tanstack/react-query": "^5.101.0",
     "@types/leaflet": "^1.9.21",
     "leaflet": "^1.9.4",
@@ -33,12 +33,12 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
-    "eslint": "^10.4.1",
+    "eslint": "^10.5.0",
     "eslint-plugin-react-hooks": "^7.1.1",
-    "eslint-plugin-react-refresh": "^0.5.2",
+    "eslint-plugin-react-refresh": "^0.5.3",
     "globals": "^17.5.0",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.61.0",
+    "typescript-eslint": "^8.61.1",
     "vite": "^8.0.16"
   }
 }
